@@ -1,39 +1,47 @@
 # game_state.py
 import random
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, TYPE_CHECKING
 from copy import deepcopy
 import re
 from cards import Card, CARDS
-from opponent_profile import OpponentProfile  # Импорт из следующего модуля, но для полноты
+
+if TYPE_CHECKING:
+    from opponent_profile import OpponentProfile
 
 class GameState:
-    def __init__(self, own_tower: int = 25, opp_tower: int = 25, own_wall: int = 5, opp_wall: int = 5,
-                 own_mana: int = 5, opp_mana: int = 5, own_ore: int = 5, opp_ore: int = 5,
-                 own_troops: int = 5, opp_troops: int = 5, own_monasteries: int = 1, opp_monasteries: int = 1,
-                 own_mines: int = 1, opp_mines: int = 1, own_barracks: int = 1, opp_barracks: int = 1,
-                 turn: int = 0, hand: Optional[List[Card]] = None, played_cards: Optional[List[Card]] = None,
-                 opp_profile: Optional[OpponentProfile] = None):
-        self.own_tower = own_tower
-        self.opp_tower = opp_tower
-        self.own_wall = own_wall
-        self.opp_wall = opp_wall
-        self.own_mana = own_mana
-        self.opp_mana = opp_mana
-        self.own_ore = own_ore
-        self.opp_ore = opp_ore
-        self.own_troops = own_troops
-        self.opp_troops = opp_troops
-        self.own_monasteries = own_monasteries
-        self.opp_monasteries = opp_monasteries
-        self.own_mines = own_mines
-        self.opp_mines = opp_mines
-        self.own_barracks = own_barracks
-        self.opp_barracks = opp_barracks
-        self.turn = turn
-        self.hand = hand or random.sample(list(CARDS.values()), 5)
-        self.played_cards = played_cards or []
-        self.opp_profile = opp_profile or OpponentProfile()
-        self.deck = [c for c in CARDS.values() if c not in self.hand]  # Добавлено: Полная колода минус рука для симуляций
+    def __init__(self):
+        self.own_tower = 30
+        self.opp_tower = 30
+        self.hand = []
+        self.played_cards = []
+        self.turn = 0
+        self.deck = []
+        self.own_wall = 0
+        self.opp_wall = 0
+        self.own_mana = 0
+        self.opp_mana = 0
+        self.own_ore = 0
+        self.opp_ore = 0
+        self.own_troops = 0
+        self.opp_troops = 0
+        self.own_mines = 0
+        self.opp_mines = 0
+        self.own_monasteries = 0
+        self.opp_monasteries = 0
+        self.own_barracks = 0
+        self.opp_barracks = 0
+        self._opp_profile = None
+
+    @property
+    def opp_profile(self):
+        if self._opp_profile is None:
+            from opponent_profile import OpponentProfile
+            self._opp_profile = OpponentProfile()
+        return self._opp_profile
+
+    def is_terminal(self):
+        """Проверка завершения игры."""
+        return self.own_tower <= 0 or self.opp_tower <= 0
 
     def copy(self):
         return deepcopy(self)

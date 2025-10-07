@@ -1,16 +1,17 @@
-
 import random
 import torch
 import uuid
 from typing import Tuple
+import torch.nn as nn
+import torch.optim as optim
 from game_state import GameState
 from cards import CARDS
 from mcts import mcts_search, simulate
-from evaluation import NeuralEval, get_state_features, criterion, optimizer, self_play_data
+from evaluation import NeuralEval, get_state_features, criterion, optimizer, self_play_data, neural_model
+from db import save_game_data, save_game_outcome, load_training_data
 
 # Initialize the neural network model
 neural_model = NeuralEval()
-from db import save_game_data, save_game_outcome, load_training_data
 
 def run_simulation(num_games: int = 100) -> Tuple[int, int, int]:
     """Запуск симуляций для сбора данных обучения."""
@@ -67,34 +68,30 @@ def run_simulation(num_games: int = 100) -> Tuple[int, int, int]:
 
 def train_ml(num_games: int = 100, epochs: int = 10, use_db: bool = True):
     """Обучение нейронной сети на симуляциях или данных из БД."""
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(neural_model.parameters())
+    
     if use_db:
-        data = load_training_data()
+        training_data = load_training_data()
     else:
-        data = []
-        wins, losses, draws = run_simulation(num_games)
-        data.extend(load_training_data())  # Дополняем новыми симуляциями
-        print(f"Симуляции: Побед {wins}, Поражений {losses}, Ничьих {draws}, Winrate: {wins / (wins + losses + draws):.2%}")
+        # Use default training data if DB is not available
+        training_data = []  # Add some default training examples
     
     for epoch in range(epochs):
         total_loss = 0
-        for state, action, reward in data:
-            features = torch.tensor(get_state_features(state), dtype=torch.float32)
-            if torch.cuda.is_available():
-                features = features.cuda()
-                neural_model.cuda()
+        for state, action, reward in training_data:
+            features = get_state_features(state)
+            prediction = neural_model(features)
+            target = torch.tensor([reward], dtype=torch.float32)
+            
+            loss = criterion(prediction, target)
+            total_loss += loss.item()
             
             optimizer.zero_grad()
-            pred = neural_model(features)
-            target = torch.tensor([reward], dtype=torch.float32)
-            if torch.cuda.is_available():
-                target = target.cuda()
-            loss = criterion(pred, target)
             loss.backward()
             optimizer.step()
-            total_loss += loss.item()
         
-        print(f"Эпоха {epoch + 1}/{epochs}, Средний лосс: {total_loss / len(data):.4f}")
+        print(f"Epoch {epoch+1}, Loss: {total_loss/len(training_data)}")
     
-    # Сохранение модели
+    # Save the trained model
     torch.save(neural_model.state_dict(), 'neural_eval_model.pth')
-    print("Модель сохранена в neural_eval_model.pth")

@@ -1,9 +1,10 @@
 @echo off
+chcp 65001 > nul
 title HWM Bot Launcher
-echo Запуск HWM Bot...
-cd d %~dp0
+echo Starting HWM Bot...
+cd /d %~dp0
 python main.py
 if %errorlevel% neq 0 (
-    echo Ошибка запуска! Проверьте Python и зависимости.
+    echo Launch error! Check Python and dependencies.
 )
 pause

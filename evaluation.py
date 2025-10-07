@@ -1,4 +1,3 @@
-
 import numpy as np
 import torch
 import torch.nn as nn
@@ -8,25 +7,23 @@ from cards import Card, CARDS
 from game_state import GameState
 
 class NeuralEval(nn.Module):
-    def __init__(self, input_size):
+    def __init__(self, input_size=64):  # Default input size
         super().__init__()
-        self.fc1 = nn.Linear(input_size, 256)
-        self.fc2 = nn.Linear(256, 128)
-        self.fc3 = nn.Linear(128, 64)
-        self.fc4 = nn.Linear(64, 1)
-        self.dropout = nn.Dropout(0.3)  # Добавлено: Dropout для предотвращения переобучения
-
+        self.network = nn.Sequential(
+            nn.Linear(input_size, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 1),
+            nn.Tanh()
+        )
+    
     def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = torch.relu(self.fc2(x))
-        x = self.dropout(x)
-        x = torch.relu(self.fc3(x))
-        return torch.tanh(self.fc4(x)) * 100
+        return self.network(x)
 
 # Инициализация модели (глобально для импорта)
 input_size = 20 + len(CARDS) * 2  # Базовые фичи + one-hot карты + комбо флаги
-neural_model = NeuralEval(input_size)
+neural_model = NeuralEval(input_size=input_size)
 criterion = nn.MSELoss()
 optimizer = optim.Adam(neural_model.parameters(), lr=0.0003)  # Уменьшен lr для стабильности
 self_play_data = []  # Данные для обучения
@@ -35,10 +32,24 @@ def get_state_features(state: GameState):
     """Получение фич состояния для нейронной сети."""
     style_code = {'neutral': 0, 'aggressive': 1, 'defensive': 2, 'resource': 3, 'combo': 4}.get(state.opp_profile.style, 0)
     features = [
-        state.own_tower, state.opp_tower, state.own_wall, state.opp_wall,
-        state.own_mana, state.opp_mana, state.own_ore, state.opp_ore, state.own_troops, state.opp_troops,
-        state.own_monasteries, state.opp_monasteries, state.own_mines, state.opp_mines, state.own_barracks, state.opp_barracks,
-        state.turn, len(state.hand), len(state.played_cards), style_code
+        state.own_tower / 30.0,  # Normalize values
+        state.opp_tower / 30.0,
+        state.own_wall / 20.0,
+        state.opp_wall / 20.0,
+        state.own_mana / 10.0,
+        state.opp_mana / 10.0,
+        state.own_ore / 10.0,
+        state.opp_ore / 10.0,
+        state.own_troops / 10.0,
+        state.opp_troops / 10.0,
+        len(state.hand) / 5.0,
+        len(state.played_cards) / 30.0,
+        state.own_mines / 5.0,
+        state.opp_mines / 5.0,
+        state.own_monasteries / 5.0,
+        state.opp_monasteries / 5.0,
+        state.own_barracks / 5.0,
+        state.opp_barracks / 5.0
     ]
     hand_onehot = [1 if c.name in [h.name for h in state.hand] else 0 for c in CARDS.values()]
     features += hand_onehot

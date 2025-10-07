@@ -1,6 +1,7 @@
-
 import tkinter as tk
 from tkinter import messagebox, ttk
+import torch
+import os
 from db import init_db
 from evaluation import neural_model
 from training import train_ml
@@ -13,10 +14,11 @@ def load_model_if_exists():
     model_path = 'neural_eval_model.pth'
     if os.path.exists(model_path):
         try:
-            neural_model.load_state_dict(torch.load(model_path))
+            neural_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
             print("Модель загружена из neural_eval_model.pth")
         except Exception as e:
             print(f"Ошибка загрузки модели: {e}")
+            messagebox.showwarning("Предупреждение", "Модель не загружена, будет использоваться новая")
     else:
         print("Модель не найдена, будет использоваться новая")
 
@@ -50,10 +52,14 @@ def start_gui():
         nonlocal driver
         try:
             driver = init_driver()
-            login(driver, login_entry.get(), pass_entry.get())
-            messagebox.showinfo("Успех", "Авторизация выполнена!")
-            login_frame.pack_forget()
-            show_games(driver)
+            if login(driver, login_entry.get(), pass_entry.get()):
+                messagebox.showinfo("Успех", "Авторизация выполнена!")
+                login_frame.pack_forget()
+                show_games(driver)
+            else:
+                messagebox.showerror("Ошибка", "Неверный логин или пароль")
+                if driver:
+                    driver.quit()
         except Exception as e:
             messagebox.showerror("Ошибка", f"Ошибка авторизации: {e}")
             if driver:
@@ -70,11 +76,12 @@ def start_gui():
         listbox = tk.Listbox(games_frame, height=10, font=("Arial", 12))
         listbox.pack(fill="both", expand=True, pady=5)
         
-        games = []  # Список игр, доступен для select_and_play и update_games
+        games = []
 
         def update_games():
-            nonlocal games
+            
             try:
+                nonlocal games
                 games = get_active_games(driver)
                 listbox.delete(0, tk.END)
                 for g in games:
@@ -106,11 +113,17 @@ def start_gui():
         update_games()
         ttk.Button(games_frame, text="Выбрать и играть", command=select_and_play).pack(pady=5)
         ttk.Button(games_frame, text="Обучить модель", command=train_model).pack(pady=5)
-        ttk.Button(games_frame, text="Выход", command=lambda: [driver.quit(), root.destroy()]).pack(pady=5)
+        ttk.Button(games_frame, text="Выход", command=lambda: [driver.quit() if driver else None, root.destroy()]).pack(pady=5)
     
     root.mainloop()
 
 if __name__ == "__main__":
-    init_db()  # Инициализация базы данных
-    load_model_if_exists()  # Загрузка модели
-    start_gui()  # Запуск интерфейса
+    try:
+        init_db()  # Инициализация базы данных
+        load_model_if_exists()  # Загрузка модели
+        start_gui()  # Запуск интерфейса
+    except Exception as e:
+        print(f"Ошибка запуска программы: {e}")
+        messagebox.showerror("Ошибка", f"Не удалось запустить программу: {e}")
+
+

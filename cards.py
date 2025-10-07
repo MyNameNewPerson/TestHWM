@@ -1,12 +1,12 @@
 # cards.py
 import json
 from dataclasses import dataclass
+from typing import Dict
 
 @dataclass
 class Card:
     name: str
-    color: str
-    cost: dict[str, int]
+    cost: int
     effect: str
 
 # Полный список карт (74 шт., проверено по гайдам daily.heroeswm.ru и форумам HWM; эффекты точны)
@@ -113,4 +113,4 @@ CARDS_JSON = [
     {"name": "Дракон", "color": "green", "cost": {"mana": 0, "ore": 0, "troops": 25}, "effect": "20 урона, враг теряет 10 маны, -1 к его казарме"}
 ]
 
-CARDS = {c["name"]: Card(c["name"], c["color"], c["cost"], c["effect"]) for c in CARDS_JSON}
+CARDS: Dict[str, Card] = {c["name"]: Card(c["name"], c["cost"], c["effect"]) for c in CARDS_JSON}

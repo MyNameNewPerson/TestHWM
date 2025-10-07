@@ -1,10 +1,10 @@
-
 from collections import defaultdict
 from copy import deepcopy
 from random import random
 from cards import Card
 from game_state import GameState
 from evaluation import categorize_effect, is_combo
+from typing import List, Optional, Dict
 
 class OpponentProfile:
     def __init__(self):
@@ -12,7 +12,9 @@ class OpponentProfile:
         self.history = []  # История действий оппонента
         self.transitions = defaultdict(lambda: defaultdict(int))  # Переходы для предсказания
         self.card_frequency = defaultdict(int)  # Частота карт для анализа стиля
-
+        self.played_cards: List[Card] = []
+        self.predicted_cards: Dict[str, float] = {}
+        
     def update(self, action: Card, state: GameState):
         """Обновление профиля оппонента на основе сыгранной карты и состояния."""
         self.history.append((action, deepcopy(state)))
@@ -67,3 +69,16 @@ class OpponentProfile:
             combo_cards = [c for c in CARDS.values() if 'play again' in c.effect.lower() or 'если' in c.effect.lower()]
             return random.choice(combo_cards) if combo_cards else random.choice(list(CARDS.values()))
         return random.choice(list(CARDS.values()))
+
+    def predict_next_card(self, game_state) -> Optional[Card]:
+        """Предсказать следующую карту оппонента"""
+        if not self.played_cards:
+            return None
+        return random.choice(self.played_cards)
+        
+    def update(self, card: Card, game_state) -> None:
+        """Обновить профиль после хода оппонента"""
+        if card:
+            self.played_cards.append(card)
+            card_name = card.name
+            self.predicted_cards[card_name] = self.predicted_cards.get(card_name, 0) + 1
