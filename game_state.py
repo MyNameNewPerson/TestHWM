@@ -4,33 +4,46 @@ from typing import List, Optional, Tuple, TYPE_CHECKING
 from copy import deepcopy
 import re
 from cards import Card, CARDS
+from dataclasses import dataclass
 
 if TYPE_CHECKING:
     from opponent_profile import OpponentProfile
 
+@dataclass
 class GameState:
-    def __init__(self):
-        self.own_tower = 30
-        self.opp_tower = 30
-        self.hand = []
-        self.played_cards = []
-        self.turn = 0
-        self.deck = []
-        self.own_wall = 0
-        self.opp_wall = 0
-        self.own_mana = 0
-        self.opp_mana = 0
-        self.own_ore = 0
-        self.opp_ore = 0
-        self.own_troops = 0
-        self.opp_troops = 0
-        self.own_mines = 0
-        self.opp_mines = 0
-        self.own_monasteries = 0
-        self.opp_monasteries = 0
-        self.own_barracks = 0
-        self.opp_barracks = 0
-        self._opp_profile = None
+    game_id: str
+    own_tower: int = 30
+    opp_tower: int = 30
+    own_wall: int = 0
+    opp_wall: int = 0
+    own_mana: int = 1
+    opp_mana: int = 1
+    own_ore: int = 0
+    opp_ore: int = 0
+    hand: List[str] = None
+
+    def __post_init__(self):
+        self.hand = self.hand or []
+
+    def to_dict(self) -> dict:
+        """Конвертация состояния в словарь."""
+        return {
+            'game_id': self.game_id,
+            'own_tower': self.own_tower,
+            'opp_tower': self.opp_tower,
+            'own_wall': self.own_wall,
+            'opp_wall': self.opp_wall,
+            'own_mana': self.own_mana,
+            'opp_mana': self.opp_mana,
+            'own_ore': self.own_ore,
+            'opp_ore': self.opp_ore,
+            'hand': self.hand
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'GameState':
+        """Создание состояния из словаря."""
+        return cls(**data)
 
     @property
     def opp_profile(self):

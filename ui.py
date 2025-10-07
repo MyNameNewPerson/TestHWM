@@ -13,6 +13,9 @@ from tkinter import StringVar, Menu, messagebox
 from tkinter import ttk
 import json
 import os
+import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 
 CONFIG_FILE = 'config.json'
 
@@ -26,6 +29,81 @@ def init_driver():
     driver = webdriver.Chrome(options=options)
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     return driver
+
+class HWMSession:
+    def __init__(self):
+        self.session = requests.Session()
+        self.base_url = 'https://www.heroeswm.ru'
+        # Устанавливаем headers чтобы сайт не блокировал запросы
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3',
+        })
+
+def login(hwm_session: HWMSession, username: str, password: str) -> bool:
+    """Авторизация через requests."""
+    try:
+        # Получаем страницу логина для получения токена
+        login_page = hwm_session.session.get(f'{hwm_session.base_url}/login.php')
+        soup = BeautifulSoup(login_page.text, 'html.parser')
+        
+        # Находим форму и токен
+        login_form = soup.find('form', {'name': 'forma'})
+        if not login_form:
+            print("Форма входа не найдена")
+            return False
+            
+        # Подготавливаем данные для входа
+        login_data = {
+            'login': username,
+            'pass': password,
+            'submit': 'Войти'
+        }
+        
+        # Отправляем запрос на вход
+        response = hwm_session.session.post(
+            urljoin(hwm_session.base_url, login_form['action']), 
+            data=login_data
+        )
+        
+        # Проверяем успешность входа
+        if 'home.php' in response.url:
+            print("Авторизация успешна")
+            return True
+        else:
+            print("Неверные учетные данные")
+            return False
+            
+    except Exception as e:
+        print(f"Ошибка авторизации: {e}")
+        return False
+
+def get_active_games(hwm_session: HWMSession) -> list:
+    """Получение списка активных игр."""
+    try:
+        response = hwm_session.session.get(f'{hwm_session.base_url}/tavern.php')
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        games = []
+        # Ищем таблицу с играми
+        game_tables = soup.find_all('table', class_='table-list')
+        
+        for table in game_tables:
+            rows = table.find_all('tr')[1:]  # Пропускаем заголовок
+            for row in rows:
+                cols = row.find_all('td')
+                if len(cols) >= 3:
+                    games.append({
+                        'id': cols[0].text.strip(),
+                        'opponent': cols[1].text.strip(),
+                        'status': 'active' if 'играет' in cols[2].text.lower() else 'waiting'
+                    })
+        
+        return games
+    except Exception as e:
+        print(f"Ошибка получения списка игр: {e}")
+        return []
 
 def login(driver, login: str, password: str):
     """Авторизация на heroeswm.ru."""
@@ -233,26 +311,23 @@ def create_context_menu(entry, root):
     
     def paste():
         try:
-            clipboard = root.clipboard_get()
-            entry.delete(0, tk.END)
-            entry.insert(0, clipboard)
+            entry.delete('0', 'end')  # Очищаем текущее содержимое
+            entry.insert('0', root.clipboard_get())  # Вставляем из буфера
         except Exception as e:
             print(f"Paste error: {e}")
             
     def copy():
         try:
-            if entry.selection_present():
-                root.clipboard_clear()
-                root.clipboard_append(entry.selection_get())
+            root.clipboard_clear()
+            root.clipboard_append(entry.get())  # Копируем всё содержимое
         except Exception as e:
             print(f"Copy error: {e}")
             
     def cut():
         try:
-            if entry.selection_present():
-                root.clipboard_clear()
-                root.clipboard_append(entry.selection_get())
-                entry.delete("sel.first", "sel.last")
+            root.clipboard_clear()
+            root.clipboard_append(entry.get())
+            entry.delete('0', 'end')
         except Exception as e:
             print(f"Cut error: {e}")
 
@@ -260,36 +335,24 @@ def create_context_menu(entry, root):
     menu.add_command(label="Копировать", command=copy)
     menu.add_command(label="Вырезать", command=cut)
     
-    # Биндим правую кнопку мыши
-    entry.bind('<Button-3>', lambda e: menu.tk_popup(e.x_root, e.y_root))
-    
-    # Добавляем стандартные биндинги с явным вызовом функций
+    # Добавляем биндинги напрямую к функциям
     entry.bind('<Control-v>', lambda e: paste())
     entry.bind('<Control-c>', lambda e: copy())
     entry.bind('<Control-x>', lambda e: cut())
-    
-    # Добавляем биндинги для стандартных событий
-    entry.bind('<<Paste>>', lambda e: paste())
-    entry.bind('<<Copy>>', lambda e: copy())
-    entry.bind('<<Cut>>', lambda e: cut())
+    entry.bind('<Button-3>', lambda e: menu.tk_popup(e.x_root, e.y_root))
 
 def start_gui():
-    """Запуск GUI для авторизации и выбора игр."""
     root = tk.Tk()
     root.title("HWM Две Башни ИИ")
     root.geometry("600x400")
     
-    # Стили для интерфейса
-    style = ttk.Style()
-    style.configure("TButton", font=("Arial", 12), padding=10)
-    style.configure("TLabel", font=("Arial", 12))
-    style.configure("TEntry", font=("Arial", 12))
+    hwm_session = HWMSession()
     
     # Фрейм для авторизации
     login_frame = ttk.Frame(root, padding="10")
     login_frame.pack(fill="both", expand=True)
     
-    # Переменные для хранения логина и пароля
+    # Поля ввода
     login_var = StringVar()
     pass_var = StringVar()
     
@@ -298,6 +361,7 @@ def start_gui():
     login_var.set(saved_login)
     pass_var.set(saved_pass)
     
+    # Создаем и настраиваем поля ввода
     ttk.Label(login_frame, text="Логин:").pack(pady=5)
     login_entry = ttk.Entry(login_frame, textvariable=login_var)
     login_entry.pack(pady=5)
@@ -306,80 +370,59 @@ def start_gui():
     pass_entry = ttk.Entry(login_frame, show="*", textvariable=pass_var)
     pass_entry.pack(pady=5)
     
-    # Включаем стандартные операции для полей ввода
+    # Настраиваем контекстное меню для обоих полей
     for entry in (login_entry, pass_entry):
-        entry.bind('<Control-a>', lambda e: e.widget.select_range(0, tk.END))
-        entry.bind('<Control-v>', lambda e: e.widget.event_generate('<<Paste>>'))
-        entry.bind('<Control-c>', lambda e: e.widget.event_generate('<<Copy>>'))
-        entry.bind('<Control-x>', lambda e: e.widget.event_generate('<<Cut>>'))
         create_context_menu(entry, root)
     
-    # Чекбокс для сохранения данных
+    # Чекбокс сохранения
     save_var = tk.BooleanVar(value=True)
     ttk.Checkbutton(login_frame, text="Сохранить данные", variable=save_var).pack(pady=5)
     
-    driver = None
-    
     def do_login():
-        nonlocal driver
         try:
-            driver = init_driver()
-            login_result = login(driver, login_var.get(), pass_var.get())
-            
-            if login_result:
+            if login(hwm_session, login_var.get(), pass_var.get()):
                 if save_var.get():
                     save_credentials(login_var.get(), pass_var.get())
-                
-                # Скрываем окно логина
                 login_frame.pack_forget()
-                
-                # Создаем новый фрейм для игр
-                show_games(driver)
+                show_games_frame()
             else:
                 messagebox.showerror("Ошибка", "Неверный логин или пароль")
-                if driver:
-                    driver.quit()
-                    driver = None
         except Exception as e:
             messagebox.showerror("Ошибка", f"Ошибка авторизации: {e}")
-            if driver:
-                driver.quit()
-                driver = None
-
-    def show_games(driver):
-        """Отображение списка активных игр."""
+    
+    def show_games_frame():
         games_frame = ttk.Frame(root, padding="10")
         games_frame.pack(fill="both", expand=True)
         
-        ttk.Label(games_frame, text="Доступные игры в таверне").pack(pady=5)
-        
-        # Создаем список игр
-        games_list = tk.Listbox(games_frame, height=10)
-        games_list.pack(fill="both", expand=True, pady=5)
+        # Текстовое поле для вывода информации
+        info_text = tk.Text(games_frame, height=10, width=50)
+        info_text.pack(pady=5)
         
         def update_games():
             try:
-                games = get_active_games(driver)
-                games_list.delete(0, tk.END)
-                for game in games:
-                    games_list.insert(tk.END, f"{game['id']}: {game['opponent']} ({game['status']})")
+                games = get_active_games(hwm_session)
+                info_text.delete('1.0', tk.END)
+                if games:
+                    for game in games:
+                        info_text.insert(tk.END, 
+                            f"Игра: {game['id']}\n"
+                            f"Противник: {game['opponent']}\n"
+                            f"Статус: {game['status']}\n"
+                            f"------------------------\n"
+                        )
+                else:
+                    info_text.insert(tk.END, "Нет доступных игр\n")
             except Exception as e:
-                messagebox.showerror("Ошибка", f"Не удалось получить список игр: {e}")
+                info_text.insert(tk.END, f"Ошибка получения списка игр: {e}\n")
         
         # Кнопки управления
         ttk.Button(games_frame, text="Обновить список", command=update_games).pack(pady=5)
-        ttk.Button(games_frame, text="Выход", command=on_closing).pack(pady=5)
+        ttk.Button(games_frame, text="Выход", command=root.quit).pack(pady=5)
         
-        # Первоначальное обновление списка
+        # Первое обновление списка
         update_games()
     
+    # Кнопка входа
     ttk.Button(login_frame, text="Войти", command=do_login).pack(pady=10)
     
-    def on_closing():
-        if driver:
-            driver.quit()
-        root.destroy()
-    
-    root.protocol("WM_DELETE_WINDOW", on_closing)
-
-    # ...existing code for show_games...
+    root.mainloop()

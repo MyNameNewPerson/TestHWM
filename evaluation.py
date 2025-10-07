@@ -21,6 +21,21 @@ class NeuralEval(nn.Module):
     def forward(self, x):
         return self.network(x)
 
+def state_to_tensor(state: GameState) -> torch.Tensor:
+    """Конвертация состояния игры в тензор."""
+    return torch.tensor([
+        state.own_tower / 30.0,
+        state.opp_tower / 30.0,
+        state.own_wall / 10.0,
+        state.opp_wall / 10.0,
+        state.own_mana / 10.0,
+        state.opp_mana / 10.0,
+        state.own_ore / 10.0,
+        state.opp_ore / 10.0,
+        len(state.hand) / 10.0,
+        1.0 if state.game_id else 0.0
+    ], dtype=torch.float32)
+
 # Инициализация модели (глобально для импорта)
 input_size = 20 + len(CARDS) * 2  # Базовые фичи + one-hot карты + комбо флаги
 neural_model = NeuralEval(input_size=input_size)
@@ -123,7 +138,7 @@ def eval_condition(effect: str, state: GameState) -> bool:
                 else:
                     val = int(val_str)
                 current = getattr(state, 'own_' + attr)
-                return (op == '=' and current == val) or (op == '>' and current > val) or (op == '< and current < val')
+                return (op == '=' and current == val) or (op == '>' and current > val) or (op == '<' and current < val)
     return False
 
 def extract_damage(effect: str) -> int:

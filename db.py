@@ -5,6 +5,7 @@ from game_state import GameState
 from cards import Card, CARDS
 from opponent_profile import OpponentProfile
 import json
+from datetime import datetime
 
 DB_FILE = 'hwm_games.db'
 
@@ -13,11 +14,27 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
+    # Таблица для игровых сессий
+    c.execute('''CREATE TABLE IF NOT EXISTS sessions
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  login TEXT,
+                  cookies TEXT,
+                  last_active DATETIME)''')
+                 
+    # Таблица для игр
     c.execute('''CREATE TABLE IF NOT EXISTS games
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  state TEXT,
-                  result TEXT,
-                  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+                  game_id TEXT,
+                  opponent TEXT,
+                  status TEXT,
+                  timestamp DATETIME)''')
+                 
+    # Таблица для состояний игры
+    c.execute('''CREATE TABLE IF NOT EXISTS game_states
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  game_id TEXT,
+                  state_data TEXT,
+                  timestamp DATETIME)''')
     
     conn.commit()
     conn.close()
@@ -56,6 +73,24 @@ def save_game_outcome(game_id: str, outcome: str, winrate: float):
             VALUES (?, ?, ?)
         ''', (game_id, outcome, winrate))
         conn.commit()
+
+def save_session(login: str, cookies: dict):
+    """Сохранение сессии."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('INSERT OR REPLACE INTO sessions (login, cookies, last_active) VALUES (?, ?, ?)',
+              (login, json.dumps(cookies), datetime.now()))
+    conn.commit()
+    conn.close()
+
+def load_session(login: str) -> dict:
+    """Загрузка сессии."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('SELECT cookies FROM sessions WHERE login = ?', (login,))
+    result = c.fetchone()
+    conn.close()
+    return json.loads(result[0]) if result else None
 
 def load_training_data() -> list:
     """Загрузка данных для обучения."""

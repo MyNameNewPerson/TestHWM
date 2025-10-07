@@ -1,0 +1,55 @@
+{
+  "main_page": {
+    "status": 200,
+    "title": "Онлайн игра бесплатно - герои меча и магии, флеш игры, homm online игры - Герои Войны и Денег",
+    "forms": 1
+  },
+  "login_page": {
+    "status": 200,
+    "title": "Онлайн игра бесплатно - герои меча и магии, флеш игры, homm online игры - Герои Войны и Денег",
+    "forms": [
+      {
+        "name": "log",
+        "action": "login.php",
+        "method": "post",
+        "inputs": [
+          {
+            "name": "LOGIN_redirect",
+            "type": "hidden",
+            "value": "1"
+          },
+          {
+            "name": "login",
+            "type": "text",
+            "value": "Имя персонажа"
+          },
+          {
+            "name": "lreseted",
+            "type": "hidden",
+            "value": "0"
+          },
+          {
+            "name": "pass",
+            "type": "password",
+            "value": "123456789012345678901"
+          },
+          {
+            "name": "preseted",
+            "type": "hidden",
+            "value": "0"
+          },
+          {
+            "name": "pliv",
+            "type": "hidden",
+            "value": "22533"
+          },
+          {
+            "name": null,
+            "type": "image",
+            "value": null
+          }
+        ]
+      }
+    ]
+  }
+}
